@@ -40,8 +40,10 @@ import pyglet
 pyglet.options["debug_gl"] = False
 from pyglet import gl
 
-STATE_W = 96  # less than Atari 160x192
-STATE_H = 96
+# STATE_W = 96  # less than Atari 160x192
+# STATE_H = 96
+STATE_W = 30
+STATE_H = 30
 VIDEO_W = 600
 VIDEO_H = 400
 WINDOW_W = 1000
