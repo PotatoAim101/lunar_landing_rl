@@ -202,6 +202,7 @@ class DDPG:
             if not load_chkpt:
                 self.learn()
             observation = observation_
+        return score
 
     def train(self, env, load_chkpt, n_games):
         best_score = env.reward_range[0]
@@ -221,8 +222,7 @@ class DDPG:
             evaluate = False
 
         for i in range(n_games):
-            score = 0
-            self.play_one_episode(env, evaluate, load_chkpt)
+            score = self.play_one_episode(env, evaluate, load_chkpt)
 
             score_history.append(score)
             avg_score = np.mean(score_history[-100:])
