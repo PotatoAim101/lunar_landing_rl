@@ -1,5 +1,7 @@
 from car_racing import *
 from pyglet.window import key
+import matplotlib.pyplot as plt
+from DDPG_agent import *
 
 
 def key_press(k, mod):
@@ -47,6 +49,29 @@ def play(env):
                 break
 
 
+def plot_learning_curve(x, scores, figure_file):
+    running_avg = np.zeros(len(scores))
+    for i in range(len(running_avg)):
+        running_avg[i] = np.mean(scores[max(0, i - 100):(i + 1)])
+    plt.plot(x, running_avg)
+    plt.title('Running average of previous 100 scores')
+    plt.savefig(figure_file)
+
+
+def train_ddpg(env, n_games):
+    agent = DDPG(input_shape=env.observation_space.shape, env=env,
+                 num_actions=env.action_space.shape[0])
+
+    figure_file = '../plots/pendulum.png'
+    load_checkpoint = False
+
+    score_history = agent.train(env, load_checkpoint, n_games)
+
+    if not load_checkpoint:
+        x = [i + 1 for i in range(n_games)]
+        plot_learning_curve(x, score_history, figure_file)
+
+
 if __name__ == "__main__":
     global restart
 
@@ -60,6 +85,9 @@ if __name__ == "__main__":
 
         env = Monitor(env, "/tmp/video-test", force=True)
 
+    n_games = 101
+
+    # train_ddpg(env, n_games)
     play(env)
 
     env.close()
