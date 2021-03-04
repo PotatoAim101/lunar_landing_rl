@@ -1,4 +1,3 @@
-from car_racing import *
 import numpy as np
 import os
 import tensorflow as tf
@@ -11,9 +10,10 @@ class ReplayMemory:
     """
     Buffer to store the states action and terminal flags
     """
-    def __init__(self, max, input_dim, num_actions):
+
+    def __init__(self, max_size, input_dim, num_actions):
         self.memory_ctr = 0
-        self.memory_size = max
+        self.memory_size = max_size
         self.rewards = np.zeros(self.memory_size)
         self.states = np.zeros((self.memory_size, *input_dim))
         self.actions = np.zeros((self.memory_size, num_actions))
@@ -34,9 +34,9 @@ class ReplayMemory:
         self.memory_ctr += 1
 
     def sample_buffer(self, batch_size):
-        max = min(self.memory_ctr, self.memory_size)
+        maxi = min(self.memory_ctr, self.memory_size)
 
-        batch = np.random.choice(max, batch_size, replace=False)
+        batch = np.random.choice(maxi, batch_size, replace=False)
 
         a = self.actions[batch]
         r = self.rewards[batch]
@@ -57,12 +57,12 @@ class Critic(keras.Model):
 
         self.fc1 = Dense(fc1_dim, activation='relu')
         self.fc2 = Dense(fc2_dim, activation='relu')
-        self.output = Dense(1, activation=None)
+        self.out = Dense(1, activation=None)
 
-    def forward(self, s, a):
-        a_value = self.fc1(tf.concat([s, a]), axis=1)
+    def call(self, s, a):
+        a_value = self.fc1(tf.concat([s, tf.reshape(a, (a.shape[0], 1))], axis=1))
         a_value = self.fc2(a_value)
-        res = self.output(a_value)
+        res = self.out(a_value)
         return res
 
 
@@ -79,7 +79,7 @@ class Actor(keras.Model):
         self.fc2 = Dense(fc2_dim, activation='relu')
         self.mu = Dense(num_actions, activation='tanh')
 
-    def forward(self, s):
+    def call(self, s):
         x = self.fc1(s)
         x = self.fc2(x)
         mu = self.mu(x)
@@ -96,16 +96,18 @@ class DDPG:
         self.tau = tau
         self.gamma = gamma
         self.memory = ReplayMemory(max, input_shape, num_actions)
+        self.max_a = env.action_space.high[0]
+        self.min_a = env.action_space.low[0]
 
         self.actor = Actor(num_actions=num_actions)
-        self.critic = Critic(num_actions=num_actions)
+        self.critic = Critic()
         self.target_actor = Actor(num_actions=num_actions, name='target_actor')
-        self.target_critic = Critic(num_actions=num_actions, name='target_critic')
+        self.target_critic = Critic(name='target_critic')
 
-        self.actor.compile(optimize=Adam(learning_rate=actor_lr))
-        self.critic.compile(optimize=Adam(learning_rate=critic_lr))
-        self.target_actor.compile(optimize=Adam(learning_rate=actor_lr))
-        self.target_critic.compile(optimize=Adam(learning_rate=critic_lr))
+        self.actor.compile(optimizer=Adam(learning_rate=actor_lr))
+        self.critic.compile(optimizer=Adam(learning_rate=critic_lr))
+        self.target_actor.compile(optimizer=Adam(learning_rate=actor_lr))
+        self.target_critic.compile(optimizer=Adam(learning_rate=critic_lr))
 
         self.update_network_parameters(tau=1)
 
@@ -116,13 +118,13 @@ class DDPG:
         w = []
         targets = self.target_actor.weights
         for i, weight in enumerate(self.actor.weights):
-            w.append(weight*tau + targets[i]*(1-tau))
+            w.append(weight * tau + targets[i] * (1 - tau))
         self.target_actor.set_weights(w)
         # critic weights
         w = []
         targets = self.target_critic.weights
         for i, weight in enumerate(self.critic.weights):
-            w.append(weight*tau + targets[i]*(1-tau))
+            w.append(weight * tau + targets[i] * (1 - tau))
         self.target_critic.set_weights(w)
 
     def remember(self, s, a, r, new_s, finished):
@@ -136,7 +138,7 @@ class DDPG:
         self.target_critic.save_weights(self.target_critic.checkpoint_file)
         print("finished saving")
 
-    def save_model(self):
+    def load_model(self):
         print("loading.....")
         self.actor.load_weights(self.actor.checkpoint_file)
         self.critic.load_weights(self.critic.checkpoint_file)
@@ -156,42 +158,80 @@ class DDPG:
     def learn(self):
         if self.memory.memory_ctr < self.batch_size:
             return
-        s, a, r, new_s, finished = self.memory.sample_buffer(self.batch_size)
+        a, r, s, new_s, finished = self.memory.sample_buffer(self.batch_size)
         actions = tf.convert_to_tensor(a, dtype=tf.float32)
         states = tf.convert_to_tensor(s, dtype=tf.float32)
         new_states = tf.convert_to_tensor(new_s, dtype=tf.float32)
         rewards = tf.convert_to_tensor(r, dtype=tf.float32)
 
-        # update rules for critic: loss function
+        # UPDATE RULE FOR CRITIC: loss function
         with tf.GradientTape() as tape:
             target_actions = self.target_actor(new_states)
-            new_critic_value = tf.squeeze(self.target_critic(new_states, target_actions), 1)
+            new_critic_value = self.target_critic(new_states, target_actions)
+            new_critic_value = tf.squeeze(new_critic_value, 1)
             critic_value = tf.squeeze(self.critic(states, actions), 1)
-            target = r + self.gamma*new_critic_value*(1-finished)
+            target = rewards + self.gamma * new_critic_value * (1 - finished)
             critic_loss = keras.losses.MSE(target, critic_value)
 
-        critic_network_gradient = tape.gradient(critic_loss, self)
+        critic_network_gradient = tape.gradient(critic_loss, self.critic.trainable_variables)
+        self.critic.optimizer.apply_gradients(zip(critic_network_gradient,
+                                                 self.critic.trainable_variables))
 
-        #unfinished
+        # UPDATE RULE FOR ACTOR:
+        with tf.GradientTape() as tape:
+            new_policy_actions = self.actor(states)
+            actor_loss = -self.critic(states, new_policy_actions)  # - for gradient accent for max total score over time
+            actor_loss = tf.math.reduce_mean(actor_loss)
 
-    def play_one_episode(self):
-        pass
+        actor_network_gradient = tape.gradient(actor_loss, self.actor.trainable_variables)
+        self.actor.optimizer.apply_gradients(zip(actor_network_gradient,
+                                                self.actor.trainable_variables))
 
-    def train(self, env, a):
-        isopen = True
-        while isopen:
-            env.reset()
-            total_reward = 0.0
-            steps = 0
-            restart = False
-            while True:
-                s, r, done, info = env.step(a)
-                """total_reward += r
-                if steps % 200 == 0 or done:
-                    print("\naction " + str(["{:+0.2f}".format(x) for x in a]))
-                    print("step {} total_reward {:+0.2f}".format(steps, total_reward))
-                steps += 1"""
-                self.play_one_episode()
-                isopen = env.render()
-                if done or restart or isopen == False:
-                    break
+        # update of the target networks
+        self.update_network_parameters()
+
+    def play_one_episode(self, env, eval, load_chkpt):
+        observation = env.reset()
+        done = False
+        score = 0
+        while not done:
+            action = self.choose_action(observation, eval)
+            observation_, reward, done, info = env.step(action)
+            score += reward
+            self.remember(observation, action, reward, observation_, done)
+            if not load_chkpt:
+                self.learn()
+            observation = observation_
+
+    def train(self, env, load_chkpt, n_games):
+        best_score = env.reward_range[0]
+        score_history = []
+        if load_chkpt:
+            n_steps = 0
+            while n_steps <= self.batch_size:
+                observation = env.reset()
+                action = env.action_space.sample()
+                observation_, reward, done, info = env.step(action)
+                self.remember(observation, action, reward, observation_, done)
+                n_steps += 1
+            self.learn()
+            self.load_model()
+            evaluate = True
+        else:
+            evaluate = False
+
+        for i in range(n_games):
+            score = 0
+            self.play_one_episode(env, evaluate, load_chkpt)
+
+            score_history.append(score)
+            avg_score = np.mean(score_history[-100:])
+
+            if avg_score > best_score:
+                best_score = avg_score
+                if not load_chkpt:
+                    self.save_model()
+
+            print('episode ', i, 'score %.1f' % score, 'avg score %.1f' % avg_score)
+
+        return score_history
