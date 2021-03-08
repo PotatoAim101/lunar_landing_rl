@@ -1,7 +1,8 @@
-from car_racing import *
+from src.env.car_racing import *
 from pyglet.window import key
 import matplotlib.pyplot as plt
-from DDPG_agent import *
+from src.agents.DDPG_agent import *
+import config
 
 
 def key_press(k, mod):
@@ -62,7 +63,7 @@ def train_ddpg(env, n_games):
     agent = DDPG(input_shape=env.observation_space.shape, env=env,
                  num_actions=env.action_space.shape[0])
 
-    figure_file = '../plots/pendulum.png'
+    figure_file = config.plots_folder / "ddpg/"
     load_checkpoint = False
 
     score_history = agent.train(env, load_checkpoint, n_games)
@@ -83,7 +84,7 @@ if __name__ == "__main__":
     if record_video:
         from gym.wrappers.monitor import Monitor
 
-        env = Monitor(env, "/tmp/video-test", force=True)
+        env = Monitor(env, config.video_folder / "ddpg/", force=True)
 
     n_games = 101
 
