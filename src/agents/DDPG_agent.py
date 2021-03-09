@@ -51,14 +51,18 @@ class ReplayMemory:
 
 class Critic(keras.Model):
     def __init__(self, fc1_dim=512, fc2_dim=512, name='critic',
-                 chkpt_dir=config.model_folder / "ddpg/"):
+                 chkpt_dir=config.model_folder / "ddpg/", continuous=True):
         super(Critic, self).__init__()
         self.model_name = name
         self.checkpoint_path = chkpt_dir
         self.checkpoint_file = os.path.join(self.checkpoint_path, self.model_name + '.h5')
 
-        self.fc1 = ReLU(fc1_dim)
-        self.fc2 = ReLU(fc2_dim)
+        if continuous:
+            self.fc1 = Dense(fc1_dim, activation='relu')
+            self.fc2 = Dense(fc2_dim, activation='relu')
+        else:
+            self.fc1 = ReLU(fc1_dim)
+            self.fc2 = ReLU(fc2_dim)
         self.out = Dense(1, activation=None)
 
     def call(self, s, a):
@@ -78,11 +82,13 @@ class Actor(keras.Model):
         self.checkpoint_path = chkpt_dir
         self.checkpoint_file = os.path.join(self.checkpoint_path, self.model_name + '.h5')
 
-        self.fc1 = ReLU(fc1_dim)
-        self.fc2 = ReLU(fc2_dim)
         if continuous:
-            self.mu = Dense(num_actions, activation='tau')
+            self.fc1 = Dense(fc1_dim, activation='relu')
+            self.fc2 = Dense(fc2_dim, activation='relu')
+            self.mu = Dense(num_actions, activation='tanh')
         else:
+            self.fc1 = ReLU(fc1_dim)
+            self.fc2 = ReLU(fc2_dim)
             self.mu = Dense(num_actions, activation='softmax')
 
     def call(self, s):
@@ -103,18 +109,18 @@ class DDPG:
         self.gamma = gamma
         self.memory = ReplayMemory(max, input_shape, num_actions)
         if continuous:
-            self.max_a = env.action_space.high[0]
+            self.max_a = 4  # env.action_space.high[0]
             self.min_a = env.action_space.low[0]
             self.continuous = True
         else:
-            self.max_a = 3
+            self.max_a = 4
             self.min_a = 1
             self.continuous = False
 
         self.actor = Actor(num_actions=num_actions, continuous=continuous)
-        self.critic = Critic()
+        self.critic = Critic(continuous=continuous)
         self.target_actor = Actor(num_actions=num_actions, name='target_actor', continuous=continuous)
-        self.target_critic = Critic(name='target_critic')
+        self.target_critic = Critic(name='target_critic', continuous=continuous)
 
         self.actor.compile(optimizer=Adam(learning_rate=actor_lr))
         self.critic.compile(optimizer=Adam(learning_rate=critic_lr))
@@ -212,6 +218,8 @@ class DDPG:
         while not done:
             action = self.choose_action(observation, eval)
             if self.continuous:
+                print("ACTION ", action)
+                print("TESTEST ", np.abs(action[1]) > 0.5)
                 observation_, reward, done, info = env.step(action)
             else:
                 observation_, reward, done, info = env.step(int(action))
