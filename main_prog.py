@@ -39,7 +39,7 @@ def play(env):
         steps = 0
         restart = False
         while True:
-            s, r, done, info = env.step(a)
+            s, r, done, info = env.step(a, total_reward)
             total_reward += r
             if steps % 200 == 0 or done:
                 print("\naction " + str(["{:+0.2f}".format(x) for x in a]))
@@ -73,6 +73,7 @@ def train_ddpg(env, n_games):
         plot_learning_curve(x, score_history, figure_file)
 
 
+
 if __name__ == "__main__":
     global restart
 
@@ -88,7 +89,9 @@ if __name__ == "__main__":
 
     n_games = 101
 
-    # train_ddpg(env, n_games)
-    play(env)
+    train_ddpg(env, n_games)
+    # play(env)
+    # env.action_space.high[0]
+    # env.action_space.low[0]
 
     env.close()

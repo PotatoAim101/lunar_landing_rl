@@ -2,9 +2,10 @@ import numpy as np
 import os
 import tensorflow as tf
 import tensorflow.keras as keras
-from tensorflow.keras.layers import Dense
+from tensorflow.keras.layers import Dense, ReLU
 from tensorflow.keras.optimizers import Adam
 import config
+import pickle
 
 
 class ReplayMemory:
@@ -50,18 +51,19 @@ class ReplayMemory:
 
 class Critic(keras.Model):
     def __init__(self, fc1_dim=512, fc2_dim=512, name='critic',
-                 chkpt_dir=config.model_folder/"ddpg/"):
+                 chkpt_dir=config.model_folder / "ddpg/"):
         super(Critic, self).__init__()
         self.model_name = name
         self.checkpoint_path = chkpt_dir
         self.checkpoint_file = os.path.join(self.checkpoint_path, self.model_name + '.h5')
 
-        self.fc1 = Dense(fc1_dim, activation='relu')
-        self.fc2 = Dense(fc2_dim, activation='relu')
+        self.fc1 = ReLU(fc1_dim)
+        self.fc2 = ReLU(fc2_dim)
         self.out = Dense(1, activation=None)
 
     def call(self, s, a):
-        a_value = self.fc1(tf.concat([s, tf.reshape(a, (a.shape[0], 1))], axis=1))
+        # a_value = self.fc1(tf.concat([s, tf.reshape(a, (a.shape[0], 1))], axis=1))
+        a_value = self.fc1(tf.concat([s, a], axis=1))
         a_value = self.fc2(a_value)
         res = self.out(a_value)
         return res
@@ -69,16 +71,19 @@ class Critic(keras.Model):
 
 class Actor(keras.Model):
     def __init__(self, num_actions, fc1_dim=512, fc2_dim=512, name='actor',
-                 chkpt_dir=config.model_folder/"ddpg/"):
+                 chkpt_dir=config.model_folder / "ddpg/", continuous=True):
         super(Actor, self).__init__()
 
         self.model_name = name
         self.checkpoint_path = chkpt_dir
         self.checkpoint_file = os.path.join(self.checkpoint_path, self.model_name + '.h5')
 
-        self.fc1 = Dense(fc1_dim, activation='relu')
-        self.fc2 = Dense(fc2_dim, activation='relu')
-        self.mu = Dense(num_actions, activation='tanh')
+        self.fc1 = ReLU(fc1_dim)
+        self.fc2 = ReLU(fc2_dim)
+        if continuous:
+            self.mu = Dense(num_actions, activation='tau')
+        else:
+            self.mu = Dense(num_actions, activation='softmax')
 
     def call(self, s):
         x = self.fc1(s)
@@ -90,19 +95,25 @@ class Actor(keras.Model):
 class DDPG:
     def __init__(self, num_actions, input_shape, actor_lr=0.001, critic_lr=0.002,
                  env=None, gamma=0.99, max=1000000, tau=0.005, fc1=400,
-                 fc2=300, batchsize=64, noise=0.1):
+                 fc2=300, batchsize=64, noise=0.1, continuous=True):
         self.num_actions = num_actions
         self.batch_size = batchsize
         self.noise = noise
         self.tau = tau
         self.gamma = gamma
         self.memory = ReplayMemory(max, input_shape, num_actions)
-        self.max_a = env.action_space.high[0]
-        self.min_a = env.action_space.low[0]
+        if continuous:
+            self.max_a = env.action_space.high[0]
+            self.min_a = env.action_space.low[0]
+            self.continuous = True
+        else:
+            self.max_a = 3
+            self.min_a = 1
+            self.continuous = False
 
-        self.actor = Actor(num_actions=num_actions)
+        self.actor = Actor(num_actions=num_actions, continuous=continuous)
         self.critic = Critic()
-        self.target_actor = Actor(num_actions=num_actions, name='target_actor')
+        self.target_actor = Actor(num_actions=num_actions, name='target_actor', continuous=continuous)
         self.target_critic = Critic(name='target_critic')
 
         self.actor.compile(optimizer=Adam(learning_rate=actor_lr))
@@ -154,6 +165,9 @@ class DDPG:
             a += tf.random.normal(shape=[self.num_actions], mean=0.0, stddev=self.noise)
         a = tf.clip_by_value(a, self.min_a, self.max_a)
 
+        if not self.continuous:
+            a = a.numpy()
+
         return a[0]
 
     def learn(self):
@@ -176,7 +190,7 @@ class DDPG:
 
         critic_network_gradient = tape.gradient(critic_loss, self.critic.trainable_variables)
         self.critic.optimizer.apply_gradients(zip(critic_network_gradient,
-                                                 self.critic.trainable_variables))
+                                                  self.critic.trainable_variables))
 
         # UPDATE RULE FOR ACTOR:
         with tf.GradientTape() as tape:
@@ -186,7 +200,7 @@ class DDPG:
 
         actor_network_gradient = tape.gradient(actor_loss, self.actor.trainable_variables)
         self.actor.optimizer.apply_gradients(zip(actor_network_gradient,
-                                                self.actor.trainable_variables))
+                                                 self.actor.trainable_variables))
 
         # update of the target networks
         self.update_network_parameters()
@@ -197,7 +211,10 @@ class DDPG:
         score = 0
         while not done:
             action = self.choose_action(observation, eval)
-            observation_, reward, done, info = env.step(action)
+            if self.continuous:
+                observation_, reward, done, info = env.step(action)
+            else:
+                observation_, reward, done, info = env.step(int(action))
             score += reward
             self.remember(observation, action, reward, observation_, done)
             if not load_chkpt:
@@ -232,6 +249,10 @@ class DDPG:
                 best_score = avg_score
                 if not load_chkpt:
                     self.save_model()
+                    print("Saving history...")
+                    with open(config.plots_folder / "ddpg/history.txt", "wb") as f:
+                        pickle.dump(score_history, f)
+                    print("History saved")
 
             print('episode ', i, 'score %.1f' % score, 'avg score %.1f' % avg_score)
 
