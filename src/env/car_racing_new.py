@@ -40,30 +40,40 @@ import pyglet
 pyglet.options["debug_gl"] = False
 from pyglet import gl
 
-# STATE_W = 96  # less than Atari 160x192
-# STATE_H = 96
-STATE_W = 30
-STATE_H = 30
+STATE_W = 96  # less than Atari 160x192
+STATE_H = 96
+"""STATE_W = 48  # less than Atari 160x192
+STATE_H = 48"""
+
 VIDEO_W = 600
 VIDEO_H = 400
 WINDOW_W = 1000
 WINDOW_H = 800
+"""VIDEO_W = STATE_W
+VIDEO_H = STATE_H
+WINDOW_W = STATE_W
+WINDOW_H = STATE_H"""
 
 SCALE = 6.0  # Track scale
 TRACK_RAD = 900 / SCALE  # Track is heavily morphed circle with this radius
+# TRACK_RAD = 200 / SCALE  # Track is heavily morphed circle with this radius
 PLAYFIELD = 2000 / SCALE  # Game over boundary
 FPS = 50  # Frames per second
-ZOOM = 2.7  # Camera zoom
-ZOOM_FOLLOW = True  # Set to False for fixed view (don't use zoom)
+# ZOOM = 2.7  # Camera zoom
+ZOOM = 0.6  # Camera zoom
+ZOOM_FOLLOW = False  # Set to False for fixed view (don't use zoom)
 
 
 TRACK_DETAIL_STEP = 21 / SCALE
-TRACK_TURN_RATE = 0.31
-TRACK_WIDTH = 40 / SCALE
+# TRACK_TURN_RATE = 0.31
+TRACK_TURN_RATE = 0.1
+# TRACK_WIDTH = 40 / SCALE
+TRACK_WIDTH = 30 / SCALE
 BORDER = 8 / SCALE
 BORDER_MIN_COUNT = 4
 
-ROAD_COLOR = [0.4, 0.4, 0.4]
+# ROAD_COLOR = [0.4, 0.4, 0.4]
+ROAD_COLOR = [0., 0., 1.]
 
 
 class FrictionDetector(contactListener):
@@ -370,6 +380,7 @@ class CarRacing(gym.Env, EzPickle):
 
         step_reward = 0
         done = False
+
         if action is not None:  # First step without action, called from reset()
             self.reward -= 0.1
             # We actually don't want to count fuel spent, we want car to be faster.
@@ -383,6 +394,15 @@ class CarRacing(gym.Env, EzPickle):
             if abs(x) > PLAYFIELD or abs(y) > PLAYFIELD:
                 done = True
                 step_reward = -100
+
+            # End the game if the car goes in the grass
+            grass = True
+            for w in self.car.wheels:
+                if len(w.tiles) > 0:
+                    grass = False
+            if grass:
+                step_reward = -100
+                done = True
 
         return self.state, step_reward, done, {}
 

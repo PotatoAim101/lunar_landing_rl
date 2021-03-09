@@ -4,6 +4,7 @@ import tensorflow as tf
 import tensorflow.keras as keras
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.optimizers import Adam
+import config
 
 
 class ReplayMemory:
@@ -49,7 +50,7 @@ class ReplayMemory:
 
 class Critic(keras.Model):
     def __init__(self, fc1_dim=512, fc2_dim=512, name='critic',
-                 chkpt_dir='models'):
+                 chkpt_dir=config.model_folder/"ddpg/"):
         super(Critic, self).__init__()
         self.model_name = name
         self.checkpoint_path = chkpt_dir
@@ -68,7 +69,7 @@ class Critic(keras.Model):
 
 class Actor(keras.Model):
     def __init__(self, num_actions, fc1_dim=512, fc2_dim=512, name='actor',
-                 chkpt_dir='models'):
+                 chkpt_dir=config.model_folder/"ddpg/"):
         super(Actor, self).__init__()
 
         self.model_name = name
