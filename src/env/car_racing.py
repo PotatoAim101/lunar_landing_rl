@@ -40,8 +40,8 @@ import pyglet
 pyglet.options["debug_gl"] = False
 from pyglet import gl
 
-STATE_W = 96  # less than Atari 160x192
-STATE_H = 96
+STATE_W = 5  # less than Atari 160x192
+STATE_H = 5
 """STATE_W = 48  # less than Atari 160x192
 STATE_H = 48"""
 
@@ -74,6 +74,8 @@ BORDER_MIN_COUNT = 4
 
 # ROAD_COLOR = [0.4, 0.4, 0.4]
 ROAD_COLOR = [0., 0., 1.]
+
+MINIMUM_REWARD = -400  # when to stop episode
 
 
 class FrictionDetector(contactListener):
@@ -364,9 +366,12 @@ class CarRacing(gym.Env, EzPickle):
                 )
         self.car = Car(self.world, *self.track[0][1:4])
 
-        return self.step(None)[0]
+        return self.step(None, 0)[0]
 
-    def step(self, action):
+    def step(self, action, agent_current_reward):
+        if agent_current_reward < MINIMUM_REWARD:
+            return self.state, -1000, True, {}
+
         if action is not None:
             self.car.steer(-action[0])
             self.car.gas(action[1])
@@ -383,8 +388,6 @@ class CarRacing(gym.Env, EzPickle):
 
         if action is not None:  # First step without action, called from reset()
             self.reward -= 0.1
-            # We actually don't want to count fuel spent, we want car to be faster.
-            # self.reward -=  10 * self.car.fuel_spent / ENGINE_POWER
             self.car.fuel_spent = 0.0
             step_reward = self.reward - self.prev_reward
             self.prev_reward = self.reward
