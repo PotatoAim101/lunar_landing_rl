@@ -5,6 +5,7 @@ from torch.distributions import Categorical
 import torch.nn as nn
 import gym
 import matplotlib.pyplot as plt
+from lunar_landing import LunarLander
 
 
 class PolicyGradientModel(nn.Module):
@@ -47,7 +48,7 @@ def generate_trajectory(agent, env, episode_max_length=-1):
 
         # Perform a step in the environment (infos is a dict containing useful infos about the current simulation)
         s, r, ep_ended, infos = env.step(a.detach().numpy())
-        env.render()
+        # env.render()
 
         s = torch.tensor(np.array(s), dtype=torch.float)
 
@@ -64,20 +65,20 @@ def generate_trajectory(agent, env, episode_max_length=-1):
 
 
 def train_pg(episodes=100, episode_max_length=-1, gamma=0.9):
-    env = gym.make('LunarLander-v2')
-
+    # env = gym.make('LunarLander-v2')
+    env = LunarLander()
     # Create the agent model
     pg_model = PolicyGradientModel()
 
     optim_pg = torch.optim.Adam(pg_model.parameters(), lr=1e-3)
     # optim_value = torch.optim.Adam(value_model.parameters(), lr=1e-4)
 
-    list_scores = []
+    list_scores, list_crash_scores, list_fuel_scores = [], [], []
 
     for i in range(episodes):
         # Generate a trajectory
         # list_rewards, list_actions, list_states = generate_trajectory(pg_model, env, episode_max_length)
-        list_rewards, list_states, list_logprobs, _ = generate_trajectory(pg_model, env, episode_max_length)
+        list_rewards, list_states, list_logprobs, infos = generate_trajectory(pg_model, env, episode_max_length)
 
         # Compute the cumulated rewards (with a discount factor of gamma)
         list_G = [0.] * len(list_rewards)
@@ -96,15 +97,30 @@ def train_pg(episodes=100, episode_max_length=-1, gamma=0.9):
         print("episode = {}, cumulated reward = {}".format(i, sum(list_rewards)))
         list_scores.append(sum(list_rewards))
 
-        if i % 100 == 0:
-            np.savetxt('pg_scores.txt', np.array(list_scores))
+        crash_score = 0
+        if infos['game_state'] == 'lost':
+            crash_score = -100
+        elif infos['game_state'] == 'won':
+            crash_score = 100
 
-    np.savetxt('pg_scores.txt', np.array(list_scores))
+        print("crash_score = {} / fuel score = {}".format(crash_score, -infos['fuel']))
+        list_crash_scores.append(crash_score)
+        list_fuel_scores.append(-infos['fuel'])
+
+
+        if i % 100 == 0:
+            np.savetxt('pg_scores2.txt', np.array(list_scores))
+            np.savetxt('crash_scores2.txt', np.array(list_crash_scores))
+            np.savetxt('fuel_scores2.txt', np.array(list_fuel_scores))
+
+    np.savetxt('pg_scores2.txt', np.array(list_scores))
+    np.savetxt('crash_scores2.txt', np.array(list_crash_scores))
+    np.savetxt('fuel_scores2.txt', np.array(list_fuel_scores))
 
     plt.plot(range(episodes), list_scores)
     plt.show()
 
-    torch.save(pg_model, "torch_pg_model")
+    torch.save(pg_model, "torch_pg_model2")
 
     env.close()
 
