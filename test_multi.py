@@ -1,6 +1,6 @@
 import numpy as np
 
-from lunar_landing_multi import LunarLander
+from src.env.lunar_landing_multi import LunarLander
 # from lunar_landing import LunarLander
 
 N = 10
