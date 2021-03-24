@@ -1,7 +1,7 @@
 <!-- PROJECT LOGO -->
 <br />
 <p align="center">
-  <a href="https://github.com/PotatoAim101/car-racing-rl">
+  <a href="https://github.com/PotatoAim101/lunar_landing_rl">
   </a>
 
   <h2 align="center">Car Racing Reinforcement Learning</h2>
@@ -33,4 +33,4 @@ Gym library: https://gym.openai.com/
 ## Usage
 
 ### Acknowledgements
-Eviroment inspired from: https://gym.openai.com/envs/CarRacing-v0/
+Enviromnent inspired from: https://gym.openai.com/envs/LunarLander-v2/
