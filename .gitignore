@@ -9,9 +9,6 @@ __pycache__/
 # pycharm
 .idea/
 
-# model checkpoints
-models/
-
 # a test file to try things out
 test.py
 
