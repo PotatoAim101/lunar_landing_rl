@@ -1,4 +1,11 @@
-from src.env.car_racing import *
+from src.env.lunar_lander import LunarLander
+from src.env.lunar_lander_multi import LunarLanderMulti
+from src.agents.Policy_Gradient_agent import PolicyGradientModel, train_pg
+import numpy as np
+import torch
+from torch.distributions import Categorical
+
+"""
 from pyglet.window import key
 import matplotlib.pyplot as plt
 from src.agents.DDPG_agent import *
@@ -70,12 +77,59 @@ def train_ddpg(env, n_games):
 
     if not load_checkpoint:
         x = [i + 1 for i in range(n_games)]
-        plot_learning_curve(x, score_history, figure_file)
+        plot_learning_curve(x, score_history, figure_file)"""
 
+
+def pg_play_multiple_models(env, models, episodes=10, episode_max_length=3500):
+
+    N = len(models)
+
+    for _ in range(episodes):
+        s = env.reset()
+
+        list_s = [s for _ in range(N)]
+        eps_ended = [False] * N
+        each_ep_ended = False
+
+        t = 0  # Current step
+
+        while (t != episode_max_length) and not each_ep_ended:
+            each_ep_ended = True
+
+            for n in range(N):
+                if not eps_ended[n]:
+                    s = list_s[n]
+                    s = torch.tensor(np.array(s), dtype=torch.float)
+                    p = models[n](s)
+                    m = Categorical(p)
+                    a = m.sample().squeeze()
+                    list_s[n], _, eps_ended[n], _ = env.step(a.detach().numpy(), n=n)
+                    each_ep_ended = each_ep_ended and eps_ended[n]
+
+            env.render()
+
+            t += 1
+
+    env.close()
+
+
+def demo_pg():
+
+    # Begins the training of a new Policy Gradient Model on a few episodes
+    """env = LunarLander()
+    pg_model = PolicyGradientModel()
+    train_pg(env, pg_model, episodes=50, episode_max_length=3500, render=True, save_path="models/pg_sample_model")"""
+
+    # Visualize behavior of several models
+    env_multi = LunarLanderMulti(N=3)
+    model1 = torch.load("models/pg_model_full_train")
+    model2 = torch.load("models/pg_model_partially_train")
+    model3 = torch.load("models/pg_sample_model")
+    pg_play_multiple_models(env_multi, [model1, model2, model3])
 
 
 if __name__ == "__main__":
-    global restart
+    """global restart
 
     a = np.array([0.0, 0.0, 0.0])
 
@@ -91,4 +145,5 @@ if __name__ == "__main__":
 
     train_ddpg(env, n_games)
 
-    env.close()
+    env.close()"""
+    demo_pg()
