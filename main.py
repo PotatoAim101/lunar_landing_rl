@@ -2,7 +2,6 @@ from src.env.car_racing import *
 from pyglet.window import key
 import matplotlib.pyplot as plt
 from src.agents.DDPG_agent import *
-from src.agents.DDPG_official import *
 import config
 
 
@@ -58,37 +57,6 @@ def plot_learning_curve(x, scores, figure_file):
     plt.plot(x, running_avg)
     plt.title('Running average of previous 100 scores')
     plt.savefig(figure_file)
-
-def ddpg_official(env=None):
-    num_states = env.observation_space.shape[0]
-    print("Size of State Space ->  {}".format(num_states))
-    if env.continuous:
-        num_actions = env.action_space.shape[0]
-        print("Size of Action Space ->  {}".format(num_actions))
-
-        upper_bound = env.action_space.high[0]
-        lower_bound = env.action_space.low[0]
-
-        print("Max Value of Action ->  {}".format(upper_bound))
-        print("Min Value of Action ->  {}".format(lower_bound))
-    else:
-        num_actions = env.action_space.n
-        print("Size of Action Space ->  {}".format(num_actions))
-
-        upper_bound = num_actions
-        lower_bound = 0
-        print("Max Value of Action ->  {}".format(upper_bound))
-        print("Min Value of Action ->  {}".format(lower_bound))
-
-    ddpg = DDPG_OFF(num_states, num_actions, lower_bound, upper_bound)
-    avg_reward_list = ddpg.train(env, 10)
-
-    # Plotting graph
-    # Episodes versus Avg. Rewards
-    plt.plot(avg_reward_list)
-    plt.xlabel("Episode")
-    plt.ylabel("Avg. Epsiodic Reward")
-    plt.show()
 
 
 def train_ddpg(env, n_games):
