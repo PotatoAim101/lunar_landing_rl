@@ -51,7 +51,7 @@ class ReplayMemory:
 
 class Critic(keras.Model):
     def __init__(self, fc1_dim=512, fc2_dim=512, name='critic',
-                 chkpt_dir=config.model_folder / "ddpg/", continuous=True):
+                 chkpt_dir=config.model_folder / "ddpg/1001/", continuous=True):
         super(Critic, self).__init__()
         self.model_name = name
         self.checkpoint_path = chkpt_dir
@@ -75,7 +75,7 @@ class Critic(keras.Model):
 
 class Actor(keras.Model):
     def __init__(self, num_actions, fc1_dim=512, fc2_dim=512, name='actor',
-                 chkpt_dir=config.model_folder / "ddpg/", continuous=True):
+                 chkpt_dir=config.model_folder / "ddpg/1001/", continuous=True):
         super(Actor, self).__init__()
 
         self.model_name = name
@@ -228,7 +228,7 @@ class DDPG:
             observation = observation_
         return score
 
-    def train(self, env, load_chkpt, n_games):
+    def train(self, env, n_games, load_chkpt=False):
         best_score = env.reward_range[0]
         score_history = []
         if load_chkpt:
