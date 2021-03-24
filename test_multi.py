@@ -1,10 +1,9 @@
 import numpy as np
 
-from src.env.lunar_landing_multi import LunarLander
-# from lunar_landing import LunarLander
+from src.env.lunar_lander_multi import LunarLanderMulti
 
-N = 10
-env = LunarLander(N=N)
+N = 1000
+env = LunarLanderMulti(N=N)
 episode_max_length=3500
 
 

@@ -1,3 +1,23 @@
+"""
+Rocket trajectory optimization is a classic topic in Optimal Control.
+According to Pontryagin's maximum principle it's optimal to fire engine full throttle or
+turn it off. That's the reason this environment is OK to have discreet actions (engine on or off).
+The landing pad is always at coordinates (0,0). The coordinates are the first two numbers in the state vector.
+Reward for moving from the top of the screen to the landing pad and zero speed is about 100..140 points.
+If the lander moves away from the landing pad it loses reward. The episode finishes if the lander crashes or
+comes to rest, receiving an additional -100 or +100 points. Each leg with ground contact is +10 points.
+Firing the main engine is -0.3 points each frame. Firing the side engine is -0.03 points each frame.
+Solved is 200 points.
+Landing outside the landing pad is possible. Fuel is infinite, so an agent can learn to fly and then land
+on its first attempt. Please see the source code for details.
+To see a heuristic landing, run:
+python gym/envs/box2d/lunar_lander.py
+To play yourself, run:
+python examples/agents/keyboard_agent.py LunarLander-v2
+Created by Oleg Klimov. Licensed on the same terms as the rest of OpenAI Gym.
+"""
+
+
 import sys, math
 import numpy as np
 
@@ -81,6 +101,8 @@ class LunarLander(gym.Env, EzPickle):
         else:
             # Nop, fire left engine, main engine, right engine
             self.action_space = spaces.Discrete(4)
+
+        self.fuel = None  # Custom
 
         self.reset()
 
@@ -192,6 +214,8 @@ class LunarLander(gym.Env, EzPickle):
 
         self.drawlist = [self.lander] + self.legs
 
+        self.fuel = 0.  # Custom
+
         return self.step(np.array([0, 0]) if self.continuous else 0)[0]
 
     def _create_particle(self, mass, x, y, ttl):
@@ -300,14 +324,20 @@ class LunarLander(gym.Env, EzPickle):
         reward -= m_power*0.30  # less fuel spent is better, about -30 for heuristic landing
         reward -= s_power*0.03
 
+        self.fuel += m_power*0.30 + s_power*0.03
+
+        game_state = "not_ended"
         done = False
         if self.game_over or abs(state[0]) >= 1.0:
             done = True
             reward = -100
+            game_state = "lost"
         if not self.lander.awake:
             done = True
             reward = +100
-        return np.array(state, dtype=np.float32), reward, done, {}
+            game_state = "won"
+
+        return np.array(state, dtype=np.float32), reward, done, {'game_state': game_state, 'fuel': self.fuel}
 
     def render(self, mode='human'):
         from gym.envs.classic_control import rendering
@@ -418,3 +448,7 @@ def demo_heuristic_lander(env, seed=None, render=False):
         steps += 1
         if done: break
     return total_reward
+
+
+if __name__ == '__main__':
+    demo_heuristic_lander(LunarLander(), render=True)
